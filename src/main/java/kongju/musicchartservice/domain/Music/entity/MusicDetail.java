@@ -1,7 +1,5 @@
 package kongju.musicchartservice.domain.Music.entity;
 
-import java.util.UUID;
-
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
