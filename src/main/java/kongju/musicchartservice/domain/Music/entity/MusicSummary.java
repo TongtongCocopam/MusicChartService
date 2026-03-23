@@ -23,18 +23,18 @@ public class MusicSummary {
     @Column(nullable = false)
     private String album;
     @Column(nullable = false)
-    private String song_id;
+    private String songId;
     @Column(nullable = false)
     private String vendor;
 
     @Builder
     public MusicSummary(int ranking, String name, String singer,
-                        String album, String song_id, String vendor) {
+                        String album, String songId, String vendor) {
         this.ranking = ranking;
         this.name = name;
         this.singer = singer;
         this.album = album;
-        this.song_id = song_id;
+        this.songId = songId;
         this.vendor = vendor;
     }
 }
