@@ -21,7 +21,7 @@ import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
 
 @Component
 @Slf4j
-public class GenieScraper {
+public class GenieScraper implements MusicScraper{
 
     private final WebClient client;
 
@@ -164,4 +164,13 @@ public class GenieScraper {
         }
     }
 
+    @Override
+    public List<MusicScrapingContext> scrape() {
+        return genieScrapping();
+    }
+
+    @Override
+    public String getScraperName() {
+        return "GENIE";
+    }
 }

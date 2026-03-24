@@ -17,7 +17,7 @@ import reactor.core.publisher.Mono;
 
 @Component
 @Slf4j
-public class MelonScraper {
+public class MelonScraper implements MusicScraper{
     private final WebClient client;
 
     public MelonScraper(WebClient.Builder webClientBuilder) {
@@ -155,4 +155,13 @@ public class MelonScraper {
         }
     }
 
+    @Override
+    public List<MusicScrapingContext> scrape() {
+        return melonScrapping();
+    }
+
+    @Override
+    public String getScraperName() {
+        return "MELON";
+    }
 }
