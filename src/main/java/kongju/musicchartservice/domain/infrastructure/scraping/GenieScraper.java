@@ -37,6 +37,7 @@ public class GenieScraper {
      * @return 곡, 앨범 정보를 담은 객체 리스트 반환
      */
     public List<MusicScrapingContext> genieScrapping() {
+        log.info("지니 차트 수집 시작");
         List<MusicScrapingContext> totalResults = new ArrayList<>();
 
         LocalDateTime now = LocalDateTime.now();
