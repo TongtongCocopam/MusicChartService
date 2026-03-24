@@ -1,33 +1,28 @@
 package kongju.musicchartservice.domain.infrastructure.scraping;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
+import kongju.musicchartservice.global.error.exception.ScrapingFailedException;
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import reactor.core.publisher.Mono;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
-
-import kongju.musicchartservice.global.error.exception.ScrapingFailedException;
-import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
-
+import reactor.core.publisher.Mono;
 
 @Component
 @Slf4j
-public class GenieScraper {
-
+public class MelonScraper {
     private final WebClient client;
 
-    public GenieScraper(WebClient.Builder webClientBuilder) {
+    public MelonScraper(WebClient.Builder webClientBuilder) {
         this.client = webClientBuilder.clone()
-                .baseUrl("https://www.genie.co.kr")
+                .baseUrl("https://www.melon.com/")
                 .build();
     }
 
@@ -36,27 +31,19 @@ public class GenieScraper {
      *
      * @return 곡, 앨범 정보를 담은 객체 리스트 반환
      */
-    public List<MusicScrapingContext> genieScrapping() {
-        List<MusicScrapingContext> totalResults = new ArrayList<>();
+    public List<MusicScrapingContext> melonScrapping() {
+        List<MusicScrapingContext> results = new ArrayList<>();
+        String url = "chart/index.htm";
 
-        LocalDateTime now = LocalDateTime.now();
-        String ymd = now.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String hh = now.format(DateTimeFormatter.ofPattern("HH"));
+        try {
+            String html = getHtml(url);
+            results = parseMelonHtml(html);
 
-        for (int pg = 1; pg <= 4; pg++) {
-            String url = String.format("/chart/top200?ditc=D&ymd=%s&hh=%s&rtm=Y&pg=%d", ymd, hh, pg);
-            log.info("지니 차트 수집 중: {} 페이지", pg);
-            try {
-                String html = getHtml(url);
-                List<MusicScrapingContext> results = parseGenieHtml(html);
-
-                totalResults.addAll(results);
-            } catch (Exception e) {
-                log.error("{} 페이지 수집 중 에러 : {} ", pg, e.getMessage());
-            }
+        } catch (Exception e) {
+            log.error("{} 페이지 수집 중 에러 : {} ", e.getMessage());
         }
 
-        return getAlbumInfo(totalResults);
+        return getAlbumInfo(results);
     }
 
     /**
@@ -85,26 +72,25 @@ public class GenieScraper {
      * @param html 파싱할 데이터
      * @return 곡 정보를 담은 객체 반환
      */
-    private List<MusicScrapingContext> parseGenieHtml(String html) {
+    private List<MusicScrapingContext> parseMelonHtml(String html) {
         List<MusicScrapingContext> result = new ArrayList<>();
         Document doc = Jsoup.parse(html);
 
-        Elements rows = doc.select("tr.list");
+        Elements rows = doc.select("tr.lst50, tr.lst100");
 
         for (Element row : rows) {
             try {
-                String rankText = row.select("td.number").text().replaceAll("[^0-9]", "");
-                int ranking = Integer.parseInt(rankText);
-                String title = row.select("a.title").text().trim();
+                int ranking = Integer.parseInt(row.select("span.rank").text().trim());
+                String title = row.select("div.rank01 span a").text().trim();
 
-                String artist = row.select("a.artist").text().trim();
+                String artist = row.select("div.rank02 a").first().text().trim();
 
-                String album = row.select("a.albumtitle").text().trim();
+                String album = row.select("div.rank03 a").text().trim();
 
-                String songId = row.attr("songid");
+                String songId = row.attr("data-song-no");
 
-                String onclickValue = row.select("a.albumtitle").attr("onclick");
-                String albumId = onclickValue.replaceAll("[^0-9]", "");
+                String albumHref = row.select("div.rank03 a").attr("href");
+                String albumId = albumHref.replaceAll("[^0-9]", "");
 
                 result.add(MusicScrapingContext.builder()
                         .title(title)
@@ -131,7 +117,7 @@ public class GenieScraper {
     public List<MusicScrapingContext> getAlbumInfo(List<MusicScrapingContext> results) {
         for (MusicScrapingContext context : results) {
             if (context.getAlbumId() != null && !context.getAlbumId().isEmpty()) {
-                String url = "/detail/albumInfo?axnm=/" + context.getAlbumId();
+                String url = "album/detail.htm?albumId=" + context.getAlbumId();
                 String html = getHtml(url);
                 parseAlbumInfo(html, context);
             }
@@ -147,20 +133,26 @@ public class GenieScraper {
      */
     private void parseAlbumInfo(String html, MusicScrapingContext context) {
         Document doc = Jsoup.parse(html);
-        Elements rows = doc.select("ul.info-data li");
-        for (Element row : rows) {
-            try {
-                String attr = row.select("span.attr img").attr("alt");
-                String value = row.select("span.value").text().trim();
-                if ("기획사".equals(attr)) {
-                    context.setAgency(value);
-                } else if ("발매사".equals(attr)) {
+        Elements row = doc.select("div.meta dl.list");
+        try {
+            Elements dts = row.select("dt");
+            Elements dds = row.select("dd");
+
+            for (int i = 0; i < dts.size(); i++) {
+                String label = dts.get(i).text().trim();
+                String value = dds.get(i).text().trim();
+
+                if ("발매사".equals(label)) {
                     context.setPublisher(value);
+                } else if ("기획사".equals(label)) {
+                    context.setAgency(value);
                 }
-            } catch (Exception e) {
-                log.error("앨범 정보 파싱 에러: {}", e.getMessage());
             }
+
+        } catch (Exception e) {
+            log.error("앨범 정보 파싱 에러: {}", e.getMessage());
         }
     }
+
 
 }
