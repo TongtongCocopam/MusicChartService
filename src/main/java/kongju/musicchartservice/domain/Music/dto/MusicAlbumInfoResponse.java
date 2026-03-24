@@ -2,8 +2,8 @@ package kongju.musicchartservice.domain.Music.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public record MusicAlbumInfo(
-        MusicInfo info,
+public record MusicAlbumInfoResponse(
+        MusicInfoResponse info,
         @JsonProperty("발매사")
         String publisher,
         @JsonProperty("기획사")
