@@ -18,7 +18,7 @@ import reactor.core.publisher.Mono;
 
 @Component
 @Slf4j
-public class VibeScraper {
+public class VibeScraper implements MusicScraper{
 
     private final WebClient client;
 
@@ -151,5 +151,15 @@ public class VibeScraper {
                 log.error("앨범 정보 파싱 에러: {}", e.getMessage());
             }
         }
+    }
+
+    @Override
+    public List<MusicScrapingContext> scrape() {
+        return vibeScrapping();
+    }
+
+    @Override
+    public String getScraperName() {
+        return "VIBE";
     }
 }
