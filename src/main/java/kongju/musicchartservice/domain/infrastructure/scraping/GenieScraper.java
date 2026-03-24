@@ -45,11 +45,15 @@ public class GenieScraper {
 
         for (int pg = 1; pg <= 4; pg++) {
             String url = String.format("/chart/top200?ditc=D&ymd=%s&hh=%s&rtm=Y&pg=%d", ymd, hh, pg);
-//            https://www.genie.co.kr/chart/top200?ditc=D&ymd=20260324&hh=13&rtm=Y&pg=1
-            String html = getHtml(url);
-            List<MusicScrapingContext> results = parseGenieHtml(html);
+            log.info("지니 차트 수집 중: {} 페이지", pg);
+            try {
+                String html = getHtml(url);
+                List<MusicScrapingContext> results = parseGenieHtml(html);
 
-            totalResults.addAll(results);
+                totalResults.addAll(results);
+            } catch (Exception e) {
+                log.error("{} 페이지 수집 중 에러 : {} ", pg, e.getMessage());
+            }
         }
 
         return getAlbumInfo(totalResults);
@@ -85,15 +89,20 @@ public class GenieScraper {
         List<MusicScrapingContext> result = new ArrayList<>();
         Document doc = Jsoup.parse(html);
 
-        Elements rows = doc.select("table.list-wrap tbody tr.list");
+        Elements rows = doc.select("tr.list");
 
         for (Element row : rows) {
             try {
-                int ranking = Integer.parseInt(row.select("td.number").text().trim());
-                String title = row.select("td.info a.title").text().trim();
-                String artist = row.select("td.info a.artist").text().trim();
-                String album = row.select("td.info a.albumtitle").text().trim();
+                String rankText = row.select("td.number").text().replaceAll("[^0-9]", "");
+                int ranking = Integer.parseInt(rankText);
+                String title = row.select("a.title").text().trim();
+
+                String artist = row.select("a.artist").text().trim();
+
+                String album = row.select("a.albumtitle").text().trim();
+
                 String songId = row.attr("songid");
+
                 String onclickValue = row.select("a.albumtitle").attr("onclick");
                 String albumId = onclickValue.replaceAll("[^0-9]", "");
 
@@ -105,6 +114,7 @@ public class GenieScraper {
                         .songId(songId)
                         .ranking(ranking)
                         .build());
+
             } catch (Exception e) {
                 log.error("데이터 파싱 에러: {}", e.getMessage());
             }
@@ -121,7 +131,7 @@ public class GenieScraper {
     public List<MusicScrapingContext> getAlbumInfo(List<MusicScrapingContext> results) {
         for (MusicScrapingContext context : results) {
             if (context.getAlbumId() != null && !context.getAlbumId().isEmpty()) {
-                String url = "\"/detail/albumInfo?axnm=\"" + context.getAlbumId();
+                String url = "/detail/albumInfo?axnm=/" + context.getAlbumId();
                 String html = getHtml(url);
                 parseAlbumInfo(html, context);
             }
@@ -132,7 +142,7 @@ public class GenieScraper {
 
     private void parseAlbumInfo(String html, MusicScrapingContext context) {
         Document doc = Jsoup.parse(html);
-        Elements rows = doc.select("ul.Info-data li");
+        Elements rows = doc.select("ul.info-data li");
         for (Element row : rows) {
             try {
                 String attr = row.select("span.attr img").attr("alt");
