@@ -15,30 +15,33 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+
 @Component
 @Slf4j
-public class MelonScraper {
+public class VibeScraper {
+
     private final WebClient client;
 
-    public MelonScraper(WebClient.Builder webClientBuilder) {
+    public VibeScraper(WebClient.Builder webClientBuilder) {
         this.client = webClientBuilder.clone()
-                .baseUrl("https://www.melon.com/")
+                .baseUrl("https://vibe.naver.com/")
                 .build();
     }
+
 
     /**
      * 지니 스크래핑 로직
      *
      * @return 곡, 앨범 정보를 담은 객체 리스트 반환
      */
-    public List<MusicScrapingContext> melonScrapping() {
-        log.info("멜론 차트 수집 시작");
+    public List<MusicScrapingContext> vibeScrapping() {
+        log.info("바이브 차트 수집 시작");
         List<MusicScrapingContext> results = new ArrayList<>();
-        String url = "chart/index.htm";
+        String url = "chart/total";
 
         try {
             String html = getHtml(url);
-            results = parseMelonHtml(html);
+            results = parseVibeHtml(html);
 
         } catch (Exception e) {
             log.error("{} 페이지 수집 중 에러 : {} ", e.getMessage());
@@ -58,7 +61,7 @@ public class MelonScraper {
                 .uri(url)
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> {
-                    log.error("멜론 에러 상태 코드: {}, 헤더: {}",
+                    log.error("바이브 에러 상태 코드: {}, 헤더: {}",
                             response.statusCode(),
                             response.headers().asHttpHeaders());
                     return Mono.error(new ScrapingFailedException());
@@ -73,25 +76,24 @@ public class MelonScraper {
      * @param html 파싱할 데이터
      * @return 곡 정보를 담은 객체 반환
      */
-    private List<MusicScrapingContext> parseMelonHtml(String html) {
+    private List<MusicScrapingContext> parseVibeHtml(String html) {
         List<MusicScrapingContext> result = new ArrayList<>();
         Document doc = Jsoup.parse(html);
 
-        Elements rows = doc.select("tr.lst50, tr.lst100");
+        Elements rows = doc.select("div.tracklist tbody tr");
 
         for (Element row : rows) {
             try {
                 int ranking = Integer.parseInt(row.select("span.rank").text().trim());
-                String title = row.select("div.rank01 span a").text().trim();
+                String title = row.select("a.link_text").attr("title");
 
-                String artist = row.select("div.rank02 a").first().text().trim();
+                String artist = row.select("div.artist_sub a.link_artist").text().trim();
 
-                String album = row.select("div.rank03 a").text().trim();
+                String album = row.select("td.album a.link").text().trim();
 
-                String songId = row.attr("data-song-no");
+                String songId = row.select("a.link_text").attr("href").replaceAll("[^0-9]", "");
 
-                String albumHref = row.select("div.rank03 a").attr("href");
-                String albumId = albumHref.replaceAll("[^0-9]", "");
+                String albumId = row.select("td.album a.link").attr("href").replaceAll("[^0-9]", "");
 
                 result.add(MusicScrapingContext.builder()
                         .title(title)
@@ -118,7 +120,7 @@ public class MelonScraper {
     public List<MusicScrapingContext> getAlbumInfo(List<MusicScrapingContext> results) {
         for (MusicScrapingContext context : results) {
             if (context.getAlbumId() != null && !context.getAlbumId().isEmpty()) {
-                String url = "album/detail.htm?albumId=" + context.getAlbumId();
+                String url = "album/" + context.getAlbumId();
                 String html = getHtml(url);
                 parseAlbumInfo(html, context);
             }
@@ -134,25 +136,20 @@ public class MelonScraper {
      */
     private void parseAlbumInfo(String html, MusicScrapingContext context) {
         Document doc = Jsoup.parse(html);
-        Elements row = doc.select("div.meta dl.list");
-        try {
-            Elements dts = row.select("dt");
-            Elements dds = row.select("dd");
+        Elements rows = doc.select("div.ly_company_area tbody tr");
+        for (Element row : rows) {
+            try {
+                String th =  row.select("th").text().trim();
+                String td = row.select("td").text().trim();
 
-            for (int i = 0; i < dts.size(); i++) {
-                String label = dts.get(i).text().trim();
-                String value = dds.get(i).text().trim();
-
-                if ("발매사".equals(label)) {
-                    context.setPublisher(value);
-                } else if ("기획사".equals(label)) {
-                    context.setAgency(value);
+                if ("발매사".equals(th)) {
+                    context.setPublisher(td);
+                } else if ("기획사".equals(th)) {
+                    context.setAgency(td);
                 }
+            } catch (Exception e) {
+                log.error("앨범 정보 파싱 에러: {}", e.getMessage());
             }
-
-        } catch (Exception e) {
-            log.error("앨범 정보 파싱 에러: {}", e.getMessage());
         }
     }
-
 }
