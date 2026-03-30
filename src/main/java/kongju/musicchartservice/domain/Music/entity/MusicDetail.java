@@ -14,7 +14,7 @@ public class MusicDetail {
     @GeneratedValue(strategy = IDENTITY)
     private Long id;
     @Column(nullable = false)
-    private int publisher;
+    private String publisher;
     @Column(nullable = false)
     private String agency;
 
@@ -23,9 +23,10 @@ public class MusicDetail {
     private MusicSummary musicSummary;
 
     @Builder
-    public MusicDetail(int publisher, String agency) {
+    public MusicDetail(String publisher, String agency,  MusicSummary musicSummary) {
         this.publisher = publisher;
         this.agency = agency;
+        this.musicSummary = musicSummary;
     }
 
 }

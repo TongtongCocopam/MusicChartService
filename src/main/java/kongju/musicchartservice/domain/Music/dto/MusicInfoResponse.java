@@ -8,10 +8,12 @@ public record MusicInfoResponse(
         @JsonProperty("순위")
         int ranking,
         @JsonProperty("곡 이름")
-        String name,
+        String title,
         @JsonProperty("가수")
         String singer,
         @JsonProperty("앨범")
-        String album
+        String album,
+        @JsonProperty("곡 아이디")
+        String songId
 ) {
 }

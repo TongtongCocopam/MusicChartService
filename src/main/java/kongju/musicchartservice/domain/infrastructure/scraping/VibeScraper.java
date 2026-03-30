@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 
 @Component
@@ -153,9 +154,17 @@ public class VibeScraper implements MusicScraper{
         }
     }
 
+//    @Override
+//    public List<MusicScrapingContext> scrape() {
+//        return vibeScrapping();
+//    }
+
     @Override
-    public List<MusicScrapingContext> scrape() {
-        return vibeScrapping();
+    public Mono<List<MusicScrapingContext>> scrape() {
+        // 1. 일단 기존 로직을 실행하되, 결과를 Mono라는 봉투에 담아서 줍니다.
+        // 2. 나중에 진짜 비동기로 고칠 때 이 부분을 Flux/flatMap으로 바꿀 거예요.
+        return Mono.fromCallable(() -> vibeScrapping())
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     @Override

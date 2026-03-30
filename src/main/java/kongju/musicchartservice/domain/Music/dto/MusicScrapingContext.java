@@ -4,9 +4,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-@Builder
 @Getter
 @Setter
+@Builder
 public class MusicScrapingContext {
     private int ranking;
     private String title;
