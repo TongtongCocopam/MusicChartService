@@ -1,7 +1,9 @@
 package kongju.musicchartservice.domain.Music.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Builder;
 
+@Builder
 public record MusicAlbumInfoResponse(
         MusicInfoResponse info,
         @JsonProperty("발매사")
