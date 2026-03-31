@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+import kongju.musicchartservice.domain.Music.constant.Vendor;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -179,7 +180,7 @@ public class GenieScraper implements MusicScraper{
     }
 
     @Override
-    public String getScraperName() {
-        return "GENIE";
+    public Vendor getScraperName() {
+        return Vendor.GENIE;
     }
 }
