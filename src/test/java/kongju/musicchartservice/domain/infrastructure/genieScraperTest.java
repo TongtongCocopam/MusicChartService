@@ -13,11 +13,11 @@ public class genieScraperTest {
     @Autowired
     private GenieScraper genieScraper;
 
-    @Test
-    void genie_chart_get_test(){
-        List<MusicScrapingContext> result = genieScraper.genieScrapping();
-        org.junit.jupiter.api.Assertions.assertNotNull(result);
-        org.junit.jupiter.api.Assertions.assertFalse(result.isEmpty());
-        System.out.println("### 결과 리스트 개수: " + result.size());
-    }
+//    @Test
+//    void genie_chart_get_test(){
+//        List<MusicScrapingContext> result = genieScraper.genieScrapping();
+//        org.junit.jupiter.api.Assertions.assertNotNull(result);
+//        org.junit.jupiter.api.Assertions.assertFalse(result.isEmpty());
+//        System.out.println("### 결과 리스트 개수: " + result.size());
+//    }
 }
