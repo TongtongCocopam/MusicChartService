@@ -3,11 +3,13 @@ package kongju.musicchartservice.domain.Music.entity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import static jakarta.persistence.GenerationType.IDENTITY;
 
 @Entity
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MusicDetail {
     @Id
@@ -19,7 +21,7 @@ public class MusicDetail {
     private String agency;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "music_id")
+//    @JoinColumn(name = "music_id")
     private MusicSummary musicSummary;
 
     @Builder
