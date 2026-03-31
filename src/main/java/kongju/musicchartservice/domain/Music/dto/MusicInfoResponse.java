@@ -15,5 +15,5 @@ public record MusicInfoResponse(
         String album,
         @JsonProperty("곡 아이디")
         String songId
-) {
+) implements MusicResponse{
 }

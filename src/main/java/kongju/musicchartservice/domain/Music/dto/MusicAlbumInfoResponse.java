@@ -10,5 +10,5 @@ public record MusicAlbumInfoResponse(
         String publisher,
         @JsonProperty("기획사")
         String agency
-) {
+)  implements MusicResponse{
 }
