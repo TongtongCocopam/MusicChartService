@@ -74,6 +74,16 @@ public class MusicChartService {
         return getCachedData(request, "detail");
     }
 
+    /**
+     * contoller가 실행할 서비스 로직 - song api용
+     * 레디스 확인 후 없으면 checkDbAndLock호출
+     *
+     * @param request 검색하고자하는 vendor, songId
+     * @return 단일 곡 상세 정보
+     */
+    public Mono<MusicAlbumInfoResponse> getSong(SongRequest request) {
+        return getCachedData(request);
+    }
 
 //    -------------------------------------------------------------------------------------------------------------
 
@@ -105,6 +115,7 @@ public class MusicChartService {
 
     /**
      * 레디스 확인 후 없으면 DB/스크래핑 로직을 실행
+     *
      * @param request songId와 vendor정보
      * @return 단일 곡 상세 정보
      */
