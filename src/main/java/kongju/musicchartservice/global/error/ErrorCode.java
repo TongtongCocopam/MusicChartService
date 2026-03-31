@@ -16,7 +16,9 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 에러가 발생했습니다"),
 
     SCRAPING_FAILED(HttpStatus.BAD_GATEWAY, "외부 사이트 스크래핑에 실패했습니다"),
-    SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "일시적으로 서비스 불가합니다");
+    SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "일시적으로 서비스 불가합니다"),
+
+    SCRAPING_LOCKED(HttpStatus.CONFLICT , "스크래핑이 이미 실행 중 입니다");
 
     private final HttpStatus status;
     private final String message;
