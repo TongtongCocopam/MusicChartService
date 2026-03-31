@@ -1,10 +1,10 @@
 package kongju.musicchartservice.domain.Music.service;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
@@ -17,20 +17,13 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
-import tools.jackson.databind.ObjectMapper;
 
+import kongju.musicchartservice.domain.Music.repository.*;
+import kongju.musicchartservice.domain.Music.entity.*;
+import kongju.musicchartservice.global.error.exception.*;
+import kongju.musicchartservice.domain.Music.dto.*;
 import kongju.musicchartservice.domain.Music.constant.Vendor;
-import kongju.musicchartservice.domain.Music.dto.VendorRequest;
-import kongju.musicchartservice.domain.Music.dto.MusicInfoResponse;
-import kongju.musicchartservice.domain.Music.repository.MusicDetailRepository;
 import kongju.musicchartservice.domain.infrastructure.scraping.MusicScraper;
-import kongju.musicchartservice.domain.Music.repository.MusicSummaryRepository;
-import kongju.musicchartservice.domain.Music.dto.MusicAlbumInfoResponse;
-import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
-import kongju.musicchartservice.domain.Music.entity.MusicDetail;
-import kongju.musicchartservice.domain.Music.entity.MusicSummary;
-import kongju.musicchartservice.global.error.exception.VendorNotFoundException;
-import kongju.musicchartservice.global.error.exception.ScrapingFailedException;
 
 
 @Service
@@ -45,48 +38,98 @@ public class MusicChartService {
 
     private final List<MusicScraper> scrapers;
     private Map<Vendor, MusicScraper> scraperMap;
-    private final ObjectMapper objectMapper;
 
     // 의존성 주입이 완료된 후 실행
     @PostConstruct
     public void init() {
         this.scraperMap = scrapers.stream()
                 .collect(Collectors.toMap(
-                        s -> Vendor.fromString(s.getScraperName()),
+                        MusicScraper::getScraperName,
                         s -> s
                 ));
     }
 
     /**
-     * contoller가 실행할 서비스 로직
+     * contoller가 실행할 서비스 로직 - summary api용
      * 레디스 확인 후 없으면 checkDbAndLock호출
      *
      * @param request 검색하고자하는 vendor
      * @return 곡 정보 리스트
      */
     public Mono<List<MusicInfoResponse>> getSummary(VendorRequest request) {
-        // vendor 가져오기
-        Vendor vendor = Vendor.fromString(request.vendor());
+        return getCachedData(request.vendor(), "summary:" + request.vendor(), MusicSummaryCache.class)
+                .map(MusicSummaryCache::getData);
+    }
 
+    /**
+     * contoller가 실행할 서비스 로직 - songs api용
+     * 레디스 확인 후 없으면 checkDbAndLock호출
+     *
+     * @param request 검색하고자하는 vendor
+     * @return 곡 상세 정보 리스트
+     */
+    public Mono<List<MusicAlbumInfoResponse>> getDetails(VendorRequest request) {
+        return getCachedData(request.vendor(), "detail:" + request.vendor(), MusicAlbumInfoCache.class)
+                .map(MusicAlbumInfoCache::getData);
+    }
+
+    /**
+     * contoller가 실행할 서비스 로직 - song api용
+     * 레디스 확인 후 없으면 checkDbAndLock호출
+     *
+     * @param request 검색하고자하는 vendor, songId
+     * @return 단일 곡 상세 정보
+     */
+    public Mono<MusicAlbumInfoResponse> getSong(SongRequest request) {
+        return getCachedData(request.vendor(), "song:" + request.musicId(), MusicAlbumInfoResponse.class);
+    }
+
+    /**
+     * 스크래퍼 고르기
+     *
+     * @param vendor 스크래핑 사이트 선택
+     * @return 스크래퍼
+     */
+    private MusicScraper chosenScraper(Vendor vendor) {
         // 스크래퍼 가져오기
         MusicScraper scraper = scraperMap.get(vendor);
-        if (scraper == null) {
+
+        if (scraper == null)
             throw new VendorNotFoundException();
-        }
 
-        // Vendor 확인 및 Key 생성
-        String cacheKey = "summary:" + vendor;
+        return scraper;
+    }
 
-        // 레디스 조회
+    /**
+     * 레디스 확인 후 없으면 DB/스크래핑 로직을 실행
+     *
+     * @param vendor    스크래핑 사이트
+     * @param cacheKey  검색할 키
+     * @param classType 반환 타입
+     * @return list나 단일 곡 객체 반환
+     */
+    private <T> Mono<T> getCachedData(Vendor vendor, String cacheKey, Class<T> classType) {
+        MusicScraper scraper = chosenScraper(vendor);
+
         return redisTemplate.opsForValue()
                 .get(cacheKey)
-                // 모노 안에 객체가 뭔지 명시적으로 표현
-                .cast(List.class)
-                // 리스트 타입을 명시적으로 표현
-                .map(list -> (List<MusicInfoResponse>) list)
-                // 데이터 없으면 checkDbAndLock 실행
-                .switchIfEmpty(Mono.defer(() -> checkDbAndLock(scraper, vendor)));
+                .cast(classType)
+                .switchIfEmpty(Mono.defer(() ->
+                        checkDbAndLock(scraper, vendor)
+                                .then(getFromRedis(cacheKey, classType))
+                ));
+    }
 
+    /**
+     * redis에서 필요한 데이터 객체 반환
+     *
+     * @param key       꺼내올 키
+     * @param classType 반환 타입
+     * @return info, Albuminfo, 리스트나 단일 객체
+     */
+    private <T> Mono<T> getFromRedis(String key, Class<T> classType) {
+        return redisTemplate.opsForValue().get(key)
+                .cast(classType);
     }
 
     /**
@@ -94,58 +137,45 @@ public class MusicChartService {
      * 업다면 스크래핑 후 레디스
      *
      * @param scraper 스크래퍼
-     * @param vendor 스크래핑할 사이트
+     * @param vendor  스크래핑할 사이트
      * @return 곡 정보를 담은 Mono반환
      */
-    public Mono<List<MusicInfoResponse>> checkDbAndLock(MusicScraper scraper, Vendor vendor) {
+    public Mono<Void> checkDbAndLock(MusicScraper scraper, Vendor vendor) {
         // JPA로 DB테이블 검색
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
 
-        return Mono.fromCallable(() -> {
-                            // 데이터가 있는가 && 있다면 30분이 지나지 않았는가
-                            return musicSummaryRepository.existsByVendorAndCreatedAtAfter(vendor, thirtyMinutesAgo);
-                        }
-                ).subscribeOn(Schedulers.boundedElastic())
+        return Mono.fromCallable(() ->
+                        // 데이터가 있는가 && 있다면 30분이 지나지 않았는가
+                        musicSummaryRepository.existsByVendorAndCreatedAtAfter(vendor, thirtyMinutesAgo)
+                )
+                .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(isFresh -> {
                     if (isFresh) {
-                        // 30분 안지났다면 redis에 넣고 반환
-                        return getLatestDataFromDb(vendor);
+                        return Mono.fromCallable(() -> {
+                                    // 30분 안지났다면 redis에 넣고 반환
+                                    List<MusicDetail> details = musicDetailRepository.findByVendorWithSummary(vendor);
+                                    List<MusicSummary> summaries = details.stream().map(MusicDetail::getMusicSummary).toList();
+
+                                    return Map.entry(summaries, details);
+                                })
+                                .subscribeOn(Schedulers.boundedElastic())
+                                // db에 데이터가 있다면 레디스에 저장
+                                .flatMap(entry -> saveRedis(vendor, entry.getKey(), entry.getValue())
+                                );
                     } else {
-                        // 지났다면 proceedToLock()호출
+                        // 없다면 스크래핑 시도
                         return proceedToLock(scraper, vendor);
                     }
                 });
     }
 
     /**
-     * DB에 있는 데이터 레디스에 넣기
-     *
-     * @param vendor
-     * @return
-     */
-    private Mono<List<MusicInfoResponse>> getLatestDataFromDb(Vendor vendor) {
-        // MusicInfo, AlbumInfo다 레디스에 넣기
-        return Mono.fromCallable(() -> {
-                    // 레디스에 DB에 summary와 detail데이터 옮겨 넣기
-                    List<MusicSummary> summaries = musicSummaryRepository.findByVendor(vendor);
-                    List<MusicDetail> details = musicDetailRepository.findByVendor(vendor);
-                    return Map.entry(summaries, details);
-                })
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(entry -> {
-                    List<MusicSummary> summaries = entry.getKey();
-                    List<MusicDetail> details = entry.getValue();
-
-                    // redis 키에 저장
-                    return saveToRedisAndReturn(vendor, summaries, details);
-                });
-    }
-
-
-    /**
      * 락을 걸고 성공하면 스크래핑 호출
+     *
+     * @param scraper 스크래핑 모듈
+     * @param vendor  스크래핑 사이트
      */
-    public Mono<List<MusicInfoResponse>> proceedToLock(MusicScraper scraper, Vendor vendor) {
+    public Mono<Void> proceedToLock(MusicScraper scraper, Vendor vendor) {
         // redis에 setIfAbsent를 사용하여 락 키 생성 lock:
         String lockKey = "lock:" + vendor;
 
@@ -154,18 +184,17 @@ public class MusicChartService {
                 .flatMap(isLocked -> {
                     if (isLocked) {
                         // 성공하면 scrapeAndSave로 이동
-                        return scrapeAndSave(scraper, vendor)
+                        return refreshData(scraper, vendor)
                                 // 내용물을 Mono로 갈아끼우기
-                                .flatMap(result -> redisTemplate.delete(lockKey)
-                                        .thenReturn(result)
-                                )
-                                .onErrorResume(e ->
-                                        redisTemplate.delete(lockKey).then(Mono.error(e))
-                                );
+                                .then(redisTemplate.delete(lockKey))
+                                .then();
                     } else {
                         return Mono.error(new ScrapingFailedException());
                     }
                 })
+                .onErrorResume(e -> // 에러가 나도 락은 지워야 하니까
+                        redisTemplate.delete(lockKey).then(Mono.error(e))
+                )
                 // 실패하면 대기했다가 다시 시도
                 .retryWhen(Retry.fixedDelay(10, Duration.ofMillis(500))
                         .filter(throwable -> throwable instanceof ScrapingFailedException));
@@ -173,38 +202,41 @@ public class MusicChartService {
     }
 
     /**
-     * 스크래핑 데이터를 받고 DB 각 테이블에 저장, redis에 저장
+     * DB저장 로직
+     *
+     * @param vendor  스크래핑한 사이트 이름
+     * @param scraper 스크래핑 모듈
      */
-    public Mono<List<MusicInfoResponse>> scrapeAndSave(MusicScraper scraper, Vendor vendor) {
-        // 스크래핑 시작
+    private Mono<Void> refreshData(MusicScraper scraper, Vendor vendor) {
         return scraper.scrape()
-                // 스크랩 데이터를 조작
-                // 리스트를 별도의 스레드에서 작업
                 .flatMap(scrapList -> Mono.fromCallable(() -> {
-                            // List데이터 정보를 가져와 2개의 테이블에 분할하여 생성
-                            List<MusicSummary> summaries = toSummaries(scrapList, vendor);
-                            List<MusicSummary> saveSummaries = musicSummaryRepository.saveAll(summaries);
+                                    // List데이터 정보를 가져와 2개의 테이블에 분할하여 생성
+                                    List<MusicSummary> summaries = toSummaries(scrapList, vendor);
+                                    List<MusicSummary> saveSummaries = musicSummaryRepository.saveAll(summaries);
 
-                            List<MusicDetail> details = toDetails(scrapList, saveSummaries);
-                            musicDetailRepository.saveAll(details);
+                                    List<MusicDetail> details = toDetails(scrapList, saveSummaries);
+                                    List<MusicDetail> saveDetails = musicDetailRepository.saveAll(details);
 
-                            // 두 리스트 한꺼번에 넘기기
-                            return Map.entry(summaries, details);
-                        })
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .flatMap(entry -> {
-                            // redis 3종 키에 저장
-                            List<MusicSummary> summaries = entry.getKey();
-                            List<MusicDetail> details = entry.getValue();
-
-                            return saveToRedisAndReturn(vendor, summaries, details);
-                        }));
+                                    // 두 리스트 한꺼번에 넘기기
+                                    return Map.entry(saveSummaries, saveDetails);
+                                })
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .flatMap(entry -> saveRedis(vendor, entry.getKey(), entry.getValue())
+                                )
+                );
     }
 
-    private Mono<List<MusicInfoResponse>> saveToRedisAndReturn(Vendor vendor, List<MusicSummary> summaries, List<MusicDetail> details) {
+    /**
+     * 레디스에 정보 저장
+     *
+     * @param vendor  스크래핑한 사이트 이름
+     * @param details detail list
+     */
+    private Mono<Void> saveRedis(Vendor vendor, List<MusicSummary> summaries, List<MusicDetail> details) {
         // DTO 변환
         List<MusicInfoResponse> infoList = summaryToInfoList(summaries);
-        List<MusicAlbumInfoResponse> albumList = detailToInfoList(details, summaries);
+        // 이거 쿼리로 받는게 아니라. 고민
+        List<MusicAlbumInfoResponse> albumList = detailToInfoList(details);
 
         // 레디스 저장 태스크들
         Mono<Void> saveSummary = redisTemplate.opsForValue()
@@ -219,12 +251,17 @@ public class MusicChartService {
                 .then();
 
         // 모두 저장 후 결과 반환
-        return Mono.when(saveSummary, saveDetail, saveSongs)
-                .thenReturn(infoList);
+        return Mono.when(saveSummary, saveDetail, saveSongs);
     }
 
-    private List<MusicInfoResponse> summaryToInfoList(List<MusicSummary> contexts) {
-        return contexts.stream()
+    /**
+     * summary 정보를 info dto로 변환
+     *
+     * @param summaries summary list
+     * @return 음원 정보 리스트
+     */
+    private List<MusicInfoResponse> summaryToInfoList(List<MusicSummary> summaries) {
+        return summaries.stream()
                 .map(context -> MusicInfoResponse.builder()
                         .ranking(context.getRanking())
                         .title(context.getTitle())
@@ -235,28 +272,29 @@ public class MusicChartService {
                 .toList();
     }
 
-    private List<MusicAlbumInfoResponse> detailToInfoList(List<MusicDetail> contexts, List<MusicSummary> summaries) {
-        List<MusicAlbumInfoResponse> result = new ArrayList<>();
-
-        for (int i = 0; i < contexts.size(); i++) {
-            MusicDetail detail = contexts.get(i);
-            MusicSummary summary = summaries.get(i);
-
-            MusicAlbumInfoResponse alInfo = MusicAlbumInfoResponse.builder()
-                    .info(MusicInfoResponse.builder()
-                            .ranking(summary.getRanking())
-                            .title(summary.getTitle())
-                            .artist(summary.getArtist())
-                            .album(summary.getAlbum())
-                            .songId(summary.getSongId())
-                            .build())
-                    .agency(detail.getAgency())
-                    .publisher(detail.getPublisher())
-                    .build();
-
-            result.add(alInfo);
-        }
-        return result;
+    /**
+     * detail, summary 정보를 albuminfo dto로 변환
+     *
+     * @param details detail list
+     * @return 음원 상세 정보 리스트
+     */
+    private List<MusicAlbumInfoResponse> detailToInfoList(List<MusicDetail> details) {
+        return details.stream()
+                .map(detail -> {
+                    MusicSummary summary = detail.getMusicSummary();
+                    return MusicAlbumInfoResponse.builder()
+                            .info(MusicInfoResponse.builder()
+                                    .ranking(summary.getRanking())
+                                    .title(summary.getTitle())
+                                    .artist(summary.getArtist())
+                                    .album(summary.getAlbum())
+                                    .songId(summary.getSongId())
+                                    .build())
+                            .agency(detail.getAgency())
+                            .publisher(detail.getPublisher())
+                            .build();
+                })
+                .toList();
     }
 
     /**

@@ -3,6 +3,7 @@ package kongju.musicchartservice.domain.infrastructure.scraping;
 import java.util.ArrayList;
 import java.util.List;
 
+import kongju.musicchartservice.domain.Music.constant.Vendor;
 import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
 import kongju.musicchartservice.global.error.exception.ScrapingFailedException;
 import lombok.extern.slf4j.Slf4j;
@@ -170,7 +171,7 @@ public class MelonScraper implements MusicScraper{
     }
 
     @Override
-    public String getScraperName() {
-        return "MELON";
+    public Vendor getScraperName() {
+        return Vendor.MELON;
     }
 }
