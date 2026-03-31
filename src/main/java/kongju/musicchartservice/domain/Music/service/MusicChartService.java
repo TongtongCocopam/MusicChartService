@@ -53,11 +53,11 @@ public class MusicChartService {
      * contoller가 실행할 서비스 로직 - summary api용
      * 레디스 확인 후 없으면 checkDbAndLock호출
      *
-     * @param request 검색하고자하는 vendor
+     * @param vendor 검색하고자하는 vendor
      * @return 곡 정보 리스트
      */
-    public Mono<List<MusicInfoResponse>> getSummary(VendorRequest request) {
-        return getCachedData(request.vendor(), "summary:" + request.vendor(), MusicSummaryCache.class)
+    public Mono<List<MusicInfoResponse>> getSummary(Vendor vendor) {
+        return getCachedData(vendor, "summary:" + vendor, MusicSummaryCache.class)
                 .map(MusicSummaryCache::getData);
     }
 
@@ -65,11 +65,11 @@ public class MusicChartService {
      * contoller가 실행할 서비스 로직 - songs api용
      * 레디스 확인 후 없으면 checkDbAndLock호출
      *
-     * @param request 검색하고자하는 vendor
+     * @param vendor 검색하고자하는 vendor
      * @return 곡 상세 정보 리스트
      */
-    public Mono<List<MusicAlbumInfoResponse>> getDetails(VendorRequest request) {
-        return getCachedData(request.vendor(), "detail:" + request.vendor(), MusicAlbumInfoCache.class)
+    public Mono<List<MusicAlbumInfoResponse>> getDetails(Vendor vendor) {
+        return getCachedData(vendor, "detail:" + vendor, MusicAlbumInfoCache.class)
                 .map(MusicAlbumInfoCache::getData);
     }
 
@@ -77,11 +77,11 @@ public class MusicChartService {
      * contoller가 실행할 서비스 로직 - song api용
      * 레디스 확인 후 없으면 checkDbAndLock호출
      *
-     * @param request 검색하고자하는 vendor, songId
+     * @param vendor 검색하고자하는 vendor, songId
      * @return 단일 곡 상세 정보
      */
-    public Mono<MusicAlbumInfoResponse> getSong(SongRequest request) {
-        return getCachedData(request.vendor(), "song:" + request.musicId(), MusicAlbumInfoResponse.class);
+    public Mono<MusicAlbumInfoResponse> getSong(Vendor vendor, String musicId) {
+        return getCachedData(vendor, "song:" + musicId, MusicAlbumInfoResponse.class);
     }
 
     /**
