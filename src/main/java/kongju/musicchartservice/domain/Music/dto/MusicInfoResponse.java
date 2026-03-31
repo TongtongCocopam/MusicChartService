@@ -10,7 +10,7 @@ public record MusicInfoResponse(
         @JsonProperty("곡 이름")
         String title,
         @JsonProperty("가수")
-        String singer,
+        String artist,
         @JsonProperty("앨범")
         String album,
         @JsonProperty("곡 아이디")

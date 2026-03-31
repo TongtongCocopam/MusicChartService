@@ -24,9 +24,9 @@ public class MusicSummary {
     @Column(nullable = false)
     private int ranking;
     @Column(nullable = false)
-    private String name;
+    private String title;
     @Column(nullable = false)
-    private String singer;
+    private String artist;
     @Column(nullable = false)
     private String album;
     @Column(nullable = false)
@@ -40,11 +40,11 @@ public class MusicSummary {
     private LocalDateTime createAt;
 
     @Builder
-    public MusicSummary(int ranking, String name, String singer,
+    public MusicSummary(int ranking, String title, String artist,
                         String album, String songId, Vendor vendor) {
         this.ranking = ranking;
-        this.name = name;
-        this.singer = singer;
+        this.title = title;
+        this.artist = artist;
         this.album = album;
         this.songId = songId;
         this.vendor = vendor;
