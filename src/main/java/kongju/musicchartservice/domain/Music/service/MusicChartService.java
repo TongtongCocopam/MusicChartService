@@ -47,7 +47,7 @@ public class MusicChartService {
     public void init() {
         this.scraperMap = scrapers.stream()
                 .collect(Collectors.toMap(
-                        s -> Vendor.fromString(s.getScraperName()),
+                        MusicScraper::getScraperName,
                         s -> s
                 ));
     }
@@ -60,7 +60,8 @@ public class MusicChartService {
      * @return 곡 정보 리스트
      */
     public Mono<List<MusicInfoResponse>> getSummary(VendorRequest request) {
-        return getCachedData(request, "summary");
+        return getCachedData(request.vendor(), "summary:" + request.vendor(), List.class)
+                .map(list -> (List<MusicInfoResponse>)list);
     }
 
     /**
@@ -71,7 +72,8 @@ public class MusicChartService {
      * @return 곡 상세 정보 리스트
      */
     public Mono<List<MusicAlbumInfoResponse>> getDetails(VendorRequest request) {
-        return getCachedData(request, "detail");
+        return getCachedData(request.vendor(), "detail:" + request.vendor(), List.class)
+                .map(list -> (List<MusicAlbumInfoResponse>)list);
     }
 
     /**
@@ -82,60 +84,47 @@ public class MusicChartService {
      * @return 단일 곡 상세 정보
      */
     public Mono<MusicAlbumInfoResponse> getSong(SongRequest request) {
-        return getCachedData(request);
-    }
-
-//    -------------------------------------------------------------------------------------------------------------
-
-    /**
-     * 레디스 확인 후 없으면 DB/스크래핑 로직을 실행하는 공통 처리기
-     *
-     * @param request 요청 vendor
-     * @param prefix  redis검색 key
-     * @return dto에 맞는 데이터
-     */
-    private <T> Mono<List<T>> getCachedData(VendorRequest request, String prefix) {
-        // vendor 가져오기
-        Vendor vendor = Vendor.fromString(request.vendor());
-        // 스크래퍼 가져오기
-        MusicScraper scraper = chosenScraper(vendor);
-
-        String cacheKey = prefix + ":" + vendor;
-
-        return redisTemplate.opsForValue()
-                .get(cacheKey)
-                .cast(List.class)
-                .map(list -> (List<T>) list)
-                .switchIfEmpty(Mono.defer(() ->
-                        checkDbAndLock(scraper, vendor)
-                                .then(getFromRedis(cacheKey, List.class))
-                                .map(list -> (List<T>) list)
-                ));
+        return getCachedData(request.vendor(), "song:" + request.musicId(), MusicAlbumInfoResponse.class);
     }
 
     /**
      * 레디스 확인 후 없으면 DB/스크래핑 로직을 실행
      *
-     * @param request songId와 vendor정보
-     * @return 단일 곡 상세 정보
+     * @param vendor 스크래핑 사이트
+     * @param cacheKey 검색할 키
+     * @param classType 반환 타입
+     * @return list나 단일 곡 객체 반환
      */
-    private Mono<MusicAlbumInfoResponse> getCachedData(SongRequest request) {
-        // vendor 가져오기
-        Vendor vendor = Vendor.fromString(request.vendor());
-        // 스크래퍼 가져오기
+    private <T> Mono<T> getCachedData(Vendor vendor, String cacheKey, Class<T> classType) {
         MusicScraper scraper = chosenScraper(vendor);
-
-        String cacheKey = "song:" + request.musicId();
 
         return redisTemplate.opsForValue()
                 .get(cacheKey)
-                .cast(MusicAlbumInfoResponse.class)
+                .cast(classType)
                 .switchIfEmpty(Mono.defer(() ->
                         checkDbAndLock(scraper, vendor)
-                                .then(getFromRedis(cacheKey, MusicAlbumInfoResponse.class))
+                                .then(getFromRedis(cacheKey, classType))
                 ));
     }
 
+    /**
+     * redis에서 필요한 데이터 객체 반환
+     *
+     * @param key       꺼내올 키
+     * @param classType 반환 타입
+     * @return info, Albuminfo, 리스트나 단일 객체
+     */
+    private <T> Mono<T> getFromRedis(String key, Class<T> classType) {
+        return redisTemplate.opsForValue().get(key)
+                .cast(classType);
+    }
+
+    /**
+     * 스크래퍼 고르기
+     *
+     * @param vendor 스크래핑 사이트 선택
+     * @return 스크래퍼
+     */
     private MusicScraper chosenScraper(Vendor vendor) {
         // 스크래퍼 가져오기
         MusicScraper scraper = scraperMap.get(vendor);
@@ -266,18 +255,6 @@ public class MusicChartService {
 
         // 모두 저장 후 결과 반환
         return Mono.when(saveSummary, saveDetail, saveSongs);
-    }
-
-    /**
-     * redis에서 필요한 데이터 객체 반환
-     *
-     * @param key       꺼내올 키
-     * @param classType 반환 타입
-     * @return info, Albuminfo, 리스트나 단일 객체
-     */
-    private <T> Mono<T> getFromRedis(String key, Class<T> classType) {
-        return redisTemplate.opsForValue().get(key)
-                .cast(classType);
     }
 
     /**
