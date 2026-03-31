@@ -1,13 +1,12 @@
 package kongju.musicchartservice.domain.Music.service;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
-import kongju.musicchartservice.domain.Music.dto.*;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -19,14 +18,12 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
+import kongju.musicchartservice.domain.Music.repository.*;
+import kongju.musicchartservice.domain.Music.entity.*;
+import kongju.musicchartservice.global.error.exception.*;
+import kongju.musicchartservice.domain.Music.dto.*;
 import kongju.musicchartservice.domain.Music.constant.Vendor;
-import kongju.musicchartservice.domain.Music.repository.MusicDetailRepository;
 import kongju.musicchartservice.domain.infrastructure.scraping.MusicScraper;
-import kongju.musicchartservice.domain.Music.repository.MusicSummaryRepository;
-import kongju.musicchartservice.domain.Music.entity.MusicDetail;
-import kongju.musicchartservice.domain.Music.entity.MusicSummary;
-import kongju.musicchartservice.global.error.exception.VendorNotFoundException;
-import kongju.musicchartservice.global.error.exception.ScrapingFailedException;
 
 
 @Service
@@ -60,8 +57,8 @@ public class MusicChartService {
      * @return 곡 정보 리스트
      */
     public Mono<List<MusicInfoResponse>> getSummary(VendorRequest request) {
-        return getCachedData(request.vendor(), "summary:" + request.vendor(), List.class)
-                .map(list -> (List<MusicInfoResponse>)list);
+        return getCachedData(request.vendor(), "summary:" + request.vendor(), MusicSummaryCache.class)
+                .map(MusicSummaryCache::getData);
     }
 
     /**
@@ -72,8 +69,8 @@ public class MusicChartService {
      * @return 곡 상세 정보 리스트
      */
     public Mono<List<MusicAlbumInfoResponse>> getDetails(VendorRequest request) {
-        return getCachedData(request.vendor(), "detail:" + request.vendor(), List.class)
-                .map(list -> (List<MusicAlbumInfoResponse>)list);
+        return getCachedData(request.vendor(), "detail:" + request.vendor(), MusicAlbumInfoCache.class)
+                .map(MusicAlbumInfoCache::getData);
     }
 
     /**
@@ -88,10 +85,26 @@ public class MusicChartService {
     }
 
     /**
+     * 스크래퍼 고르기
+     *
+     * @param vendor 스크래핑 사이트 선택
+     * @return 스크래퍼
+     */
+    private MusicScraper chosenScraper(Vendor vendor) {
+        // 스크래퍼 가져오기
+        MusicScraper scraper = scraperMap.get(vendor);
+
+        if (scraper == null)
+            throw new VendorNotFoundException();
+
+        return scraper;
+    }
+
+    /**
      * 레디스 확인 후 없으면 DB/스크래핑 로직을 실행
      *
-     * @param vendor 스크래핑 사이트
-     * @param cacheKey 검색할 키
+     * @param vendor    스크래핑 사이트
+     * @param cacheKey  검색할 키
      * @param classType 반환 타입
      * @return list나 단일 곡 객체 반환
      */
@@ -117,22 +130,6 @@ public class MusicChartService {
     private <T> Mono<T> getFromRedis(String key, Class<T> classType) {
         return redisTemplate.opsForValue().get(key)
                 .cast(classType);
-    }
-
-    /**
-     * 스크래퍼 고르기
-     *
-     * @param vendor 스크래핑 사이트 선택
-     * @return 스크래퍼
-     */
-    private MusicScraper chosenScraper(Vendor vendor) {
-        // 스크래퍼 가져오기
-        MusicScraper scraper = scraperMap.get(vendor);
-
-        if (scraper == null)
-            throw new VendorNotFoundException();
-
-        return scraper;
     }
 
     /**
