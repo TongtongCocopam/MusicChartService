@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 
 import static jakarta.persistence.GenerationType.IDENTITY;
 
+import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
+
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -31,4 +33,11 @@ public class MusicDetail {
         this.musicSummary = musicSummary;
     }
 
+    public static MusicDetail of(MusicScrapingContext context, MusicSummary summary) {
+        return MusicDetail.builder()
+                .publisher(context.getPublisher())
+                .agency(context.getAgency())
+                .musicSummary(summary)
+                .build();
+    }
 }

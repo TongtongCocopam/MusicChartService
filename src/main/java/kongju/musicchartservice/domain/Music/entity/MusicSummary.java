@@ -3,16 +3,15 @@ package kongju.musicchartservice.domain.Music.entity;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.*;
-import kongju.musicchartservice.domain.Music.constant.Vendor;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
-
-
 import static jakarta.persistence.GenerationType.IDENTITY;
 
+import kongju.musicchartservice.domain.Music.constant.Vendor;
+import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
 
 @Entity
 @Getter
@@ -50,4 +49,16 @@ public class MusicSummary {
         this.vendor = vendor;
         this.createAt = LocalDateTime.now();
     }
+
+    public static MusicSummary of(MusicScrapingContext content, Vendor vendor) {
+        return MusicSummary.builder()
+                .ranking(content.getRanking())
+                .title(content.getTitle())
+                .album(content.getAlbum())
+                .artist(content.getArtist())
+                .songId(content.getSongId())
+                .vendor(vendor)
+                .build();
+    }
+
 }
