@@ -108,13 +108,12 @@ public class MusicChartService {
      * @return list나 단일 곡 객체 반환
      */
     private <T> Mono<T> getCachedData(Vendor vendor, String cacheKey, Class<T> classType) {
-        MusicScraper scraper = chosenScraper(vendor);
 
         return redisTemplate.opsForValue()
                 .get(cacheKey)
                 .cast(classType)
                 .switchIfEmpty(Mono.defer(() ->
-                        checkDbAndLock(scraper, vendor)
+                        checkDbAndLock(vendor)
                                 .then(getFromRedis(cacheKey, classType))
                 ));
     }
@@ -135,11 +134,10 @@ public class MusicChartService {
      * DB조회 후 30분 지났는지 확인
      * 업다면 스크래핑 후 레디스
      *
-     * @param scraper 스크래퍼
      * @param vendor  스크래핑할 사이트
      * @return 곡 정보를 담은 Mono반환
      */
-    public Mono<Void> checkDbAndLock(MusicScraper scraper, Vendor vendor) {
+    public Mono<Void> checkDbAndLock(Vendor vendor) {
         // JPA로 DB테이블 검색
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
 
@@ -163,7 +161,7 @@ public class MusicChartService {
                                 );
                     } else {
                         // 없다면 스크래핑 시도
-                        return proceedToLock(scraper, vendor);
+                        return proceedToLock(chosenScraper(vendor), vendor);
                     }
                 });
     }
