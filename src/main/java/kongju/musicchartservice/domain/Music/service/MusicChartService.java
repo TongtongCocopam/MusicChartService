@@ -3,7 +3,6 @@ package kongju.musicchartservice.domain.Music.service;
 import java.util.List;
 import java.util.Map;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
@@ -262,13 +261,7 @@ public class MusicChartService {
      */
     private List<MusicInfoResponse> summaryToInfoList(List<MusicSummary> summaries) {
         return summaries.stream()
-                .map(context -> MusicInfoResponse.builder()
-                        .ranking(context.getRanking())
-                        .title(context.getTitle())
-                        .artist(context.getArtist())
-                        .album(context.getAlbum())
-                        .songId(context.getSongId())
-                        .build())
+                .map(MusicInfoResponse::from)
                 .toList();
     }
 
@@ -280,20 +273,7 @@ public class MusicChartService {
      */
     private List<MusicAlbumInfoResponse> detailToInfoList(List<MusicDetail> details) {
         return details.stream()
-                .map(detail -> {
-                    MusicSummary summary = detail.getMusicSummary();
-                    return MusicAlbumInfoResponse.builder()
-                            .info(MusicInfoResponse.builder()
-                                    .ranking(summary.getRanking())
-                                    .title(summary.getTitle())
-                                    .artist(summary.getArtist())
-                                    .album(summary.getAlbum())
-                                    .songId(summary.getSongId())
-                                    .build())
-                            .agency(detail.getAgency())
-                            .publisher(detail.getPublisher())
-                            .build();
-                })
+                .map(MusicAlbumInfoResponse::from)
                 .toList();
     }
 
@@ -306,14 +286,7 @@ public class MusicChartService {
      */
     private List<MusicSummary> toSummaries(List<MusicScrapingContext> contexts, Vendor vendor) {
         return contexts.stream()
-                .map(content -> MusicSummary.builder()
-                        .ranking(content.getRanking())
-                        .title(content.getTitle())
-                        .album(content.getAlbum())
-                        .artist(content.getArtist())
-                        .songId(content.getSongId())
-                        .vendor(vendor)
-                        .build())
+                .map(content -> MusicSummary.of(content, vendor))
                 .toList();
     }
 
@@ -325,18 +298,8 @@ public class MusicChartService {
      * @return detail list반환
      */
     private List<MusicDetail> toDetails(List<MusicScrapingContext> contexts, List<MusicSummary> summaries) {
-        List<MusicDetail> details = new ArrayList<>();
-        for (int i = 0; i < summaries.size(); i++) {
-            MusicScrapingContext context = contexts.get(i);
-            MusicSummary parent = summaries.get(i);
-
-            details.add(MusicDetail.builder()
-                    .publisher(context.getPublisher())
-                    .agency(context.getAgency())
-                    .musicSummary(parent)
-                    .build());
-        }
-        return details;
+        return java.util.stream.IntStream.range(0, summaries.size())
+                .mapToObj(i -> MusicDetail.of(contexts.get(i), summaries.get(i)))
+                .toList();
     }
-
 }
