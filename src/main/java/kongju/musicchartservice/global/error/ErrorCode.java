@@ -13,6 +13,12 @@ public enum ErrorCode {
     DUPLICATE_RESOURCE(HttpStatus.CONFLICT, "이미 존재하는 데이터입니다"),
     DATA_INTEGRITY_VIOLATION(HttpStatus.UNPROCESSABLE_ENTITY, "데이터 제약 조건을 위반했습니다"),
 
+    // DB 서버나 Redis 서버 자체에 문제
+    DATABASE_CONNECTION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "데이터베이스 연결에 실패했습니다"),
+
+    // 락 충돌이나 동시성 문제
+    CONCURRENCY_ERROR(HttpStatus.CONFLICT, "동시에 동일한 데이터를 수정하여 충돌이 발생했습니다"),
+
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 에러가 발생했습니다"),
 
     SCRAPING_FAILED(HttpStatus.BAD_GATEWAY, "외부 사이트 스크래핑에 실패했습니다"),
