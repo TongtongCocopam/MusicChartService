@@ -31,6 +31,7 @@ public class GenieScraper implements MusicScraper {
 
     public GenieScraper(WebClient.Builder webClientBuilder) {
         this.client = webClientBuilder.clone()
+                //https://www.genie.co.kr
                 .baseUrl("https://www.genie.co.kr")
                 .build();
     }
@@ -105,7 +106,7 @@ public class GenieScraper implements MusicScraper {
 
                     for (Element row : rows) {
                         try {
-                            String rankText = row.select("td.number").text().replaceAll("[^0-9]", "");
+                            String rankText = row.select("td.number").get(0).ownText().trim();
                             int ranking = Integer.parseInt(rankText);
                             String title = row.select("a.title").text().trim();
 
@@ -151,7 +152,8 @@ public class GenieScraper implements MusicScraper {
                         return Mono.just(context);
                     }
 
-                    String url = "/detail/albumInfo?axnm=/" + context.getAlbumId();
+                    // https://www.genie.co.kr/detail/albumInfo?axnm=
+                    String url = "/detail/albumInfo?axnm=" + context.getAlbumId();
 
                     // 주소 가지고 파싱
                     return getHtml(url)

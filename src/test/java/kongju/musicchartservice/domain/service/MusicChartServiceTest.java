@@ -117,24 +117,26 @@ public class MusicChartServiceTest {
         // DB 데이터 있음
         when(musicSummaryRepository.existsByVendorAndCreatedAtAfter(any(), any())).thenReturn(true);
 
+        MusicDetail detail = MusicDetail.builder()
+                .agency("Test Agency")
+                .publisher("Test Publisher")
+                .build();
+
         MusicSummary summary = MusicSummary.builder()
                 .ranking(1)
                 .title("Test Song")
                 .artist("Test Artist")
                 .album("test Album")
                 .songId("test1234")
+                .musicDetail(detail)
                 .vendor(vendor)
                 .build();
 
-        MusicDetail detail = MusicDetail.builder()
-                .musicSummary(summary)
-                .agency("Test Agency")
-                .publisher("Test Publisher")
-                .build();
 
-        List<MusicDetail> mockDetails = List.of(detail);
-        when(musicDetailRepository.findByVendorWithSummary(vendor))
-                .thenReturn(mockDetails);
+
+        List<MusicSummary> mockSummaries = List.of(summary);
+        when(musicSummaryRepository.findByVendorWithDetail(vendor))
+                .thenReturn(mockSummaries);
 
         when(valueOperations.set(anyString(), any(), any(Duration.class)))
                 .thenReturn(Mono.just(true));
@@ -184,21 +186,6 @@ public class MusicChartServiceTest {
         // checkDbAndLock
         // DB 데이터 없음
         when(musicSummaryRepository.existsByVendorAndCreatedAtAfter(any(), any())).thenReturn(false);
-
-        MusicSummary summary = MusicSummary.builder()
-                .ranking(1)
-                .title("Test Song")
-                .artist("Test Artist")
-                .album("test Album")
-                .songId("test1234")
-                .vendor(vendor)
-                .build();
-
-        MusicDetail detail = MusicDetail.builder()
-                .musicSummary(summary)
-                .agency("Test Agency")
-                .publisher("Test Publisher")
-                .build();
 
         // proceedToLock
         when(valueOperations.setIfAbsent(anyString(), any(), any(Duration.class)))

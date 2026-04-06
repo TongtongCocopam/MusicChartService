@@ -13,8 +13,8 @@ public record MusicAlbumInfoResponse(
         @JsonProperty("기획사")
         String agency
 ) implements MusicResponse {
-    public static MusicAlbumInfoResponse from(MusicDetail detail) {
-        MusicSummary summary = detail.getMusicSummary();
+    public static MusicAlbumInfoResponse from(MusicSummary summary) {
+        MusicDetail detail = summary.getMusicDetail();
         return MusicAlbumInfoResponse.builder()
                 .info(MusicInfoResponse.builder()
                         .ranking(summary.getRanking())
