@@ -3,11 +3,15 @@ package kongju.musicchartservice.domain.Music.entity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import static jakarta.persistence.GenerationType.IDENTITY;
 
+import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
+
 @Entity
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MusicDetail {
     @Id
@@ -18,15 +22,16 @@ public class MusicDetail {
     @Column(nullable = false)
     private String agency;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "music_id")
-    private MusicSummary musicSummary;
-
     @Builder
-    public MusicDetail(String publisher, String agency,  MusicSummary musicSummary) {
+    public MusicDetail(String publisher, String agency) {
         this.publisher = publisher;
         this.agency = agency;
-        this.musicSummary = musicSummary;
     }
 
+    public static MusicDetail of(MusicScrapingContext context) {
+        return MusicDetail.builder()
+                .publisher(context.getPublisher())
+                .agency(context.getAgency())
+                .build();
+    }
 }

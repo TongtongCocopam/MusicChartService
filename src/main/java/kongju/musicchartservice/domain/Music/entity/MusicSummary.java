@@ -3,16 +3,14 @@ package kongju.musicchartservice.domain.Music.entity;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.*;
-import kongju.musicchartservice.domain.Music.constant.Vendor;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
-
-
 import static jakarta.persistence.GenerationType.IDENTITY;
 
+import kongju.musicchartservice.domain.Music.constant.Vendor;
+import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
 
 @Entity
 @Getter
@@ -24,9 +22,9 @@ public class MusicSummary {
     @Column(nullable = false)
     private int ranking;
     @Column(nullable = false)
-    private String name;
+    private String title;
     @Column(nullable = false)
-    private String singer;
+    private String artist;
     @Column(nullable = false)
     private String album;
     @Column(nullable = false)
@@ -35,19 +33,36 @@ public class MusicSummary {
     @Column(nullable = false)
     private Vendor vendor;
 
-    @CreatedDate
+    @ManyToOne
+    @JoinColumn(name = "music_detail_id", nullable = false)
+    private MusicDetail musicDetail;
+
     @Column(nullable = false)
-    private LocalDateTime createAt;
+    private LocalDateTime createdAt;
 
     @Builder
-    public MusicSummary(int ranking, String name, String singer,
-                        String album, String songId, Vendor vendor) {
+    public MusicSummary(int ranking, String title, String artist,
+                        String album, String songId, Vendor vendor, MusicDetail musicDetail) {
         this.ranking = ranking;
-        this.name = name;
-        this.singer = singer;
+        this.title = title;
+        this.artist = artist;
         this.album = album;
         this.songId = songId;
         this.vendor = vendor;
-        this.createAt = LocalDateTime.now();
+        this.musicDetail = musicDetail;
+        this.createdAt = LocalDateTime.now();
     }
+
+    public static MusicSummary of(MusicScrapingContext content, Vendor vendor, MusicDetail musicDetail) {
+        return MusicSummary.builder()
+                .ranking(content.getRanking())
+                .title(content.getTitle())
+                .album(content.getAlbum())
+                .artist(content.getArtist())
+                .songId(content.getSongId())
+                .musicDetail(musicDetail)
+                .vendor(vendor)
+                .build();
+    }
+
 }
