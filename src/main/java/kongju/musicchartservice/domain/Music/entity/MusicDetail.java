@@ -22,22 +22,16 @@ public class MusicDetail {
     @Column(nullable = false)
     private String agency;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "music_id")
-    private MusicSummary musicSummary;
-
     @Builder
-    public MusicDetail(String publisher, String agency,  MusicSummary musicSummary) {
+    public MusicDetail(String publisher, String agency) {
         this.publisher = publisher;
         this.agency = agency;
-        this.musicSummary = musicSummary;
     }
 
-    public static MusicDetail of(MusicScrapingContext context, MusicSummary summary) {
+    public static MusicDetail of(MusicScrapingContext context) {
         return MusicDetail.builder()
                 .publisher(context.getPublisher())
                 .agency(context.getAgency())
-                .musicSummary(summary)
                 .build();
     }
 }
