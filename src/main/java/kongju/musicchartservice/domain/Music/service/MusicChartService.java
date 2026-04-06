@@ -24,6 +24,7 @@ import kongju.musicchartservice.global.error.exception.*;
 import kongju.musicchartservice.domain.Music.dto.*;
 import kongju.musicchartservice.domain.Music.constant.Vendor;
 import kongju.musicchartservice.domain.infrastructure.scraping.MusicScraper;
+import tools.jackson.databind.ObjectMapper;
 
 
 @Service
@@ -34,10 +35,11 @@ public class MusicChartService {
     private final MusicDetailRepository musicDetailRepository;
     private final MusicSummaryRepository musicSummaryRepository;
 
-    private final ReactiveRedisTemplate<String, Object> redisTemplate;
+    private final ReactiveRedisTemplate<String, String> redisTemplate;
 
     private final List<MusicScraper> scrapers;
     private Map<Vendor, MusicScraper> scraperMap;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     // 의존성 주입이 완료된 후 실행
     @PostConstruct
@@ -110,9 +112,7 @@ public class MusicChartService {
      */
     private <T> Mono<T> getCachedData(Vendor vendor, String cacheKey, Class<T> classType) {
 
-        return redisTemplate.opsForValue()
-                .get(cacheKey)
-                .cast(classType)
+        return getFromRedis(cacheKey, classType)
                 .switchIfEmpty(Mono.defer(() ->
                         checkDbAndLock(vendor, cacheKey, classType)
                                 .then(getFromRedis(cacheKey, classType))
@@ -127,8 +127,18 @@ public class MusicChartService {
      * @return info, Albuminfo, 리스트나 단일 객체
      */
     private <T> Mono<T> getFromRedis(String key, Class<T> classType) {
+
         return redisTemplate.opsForValue().get(key)
-                .cast(classType);
+                .map(json -> deserialize(json, classType));
+    }
+
+    private <T> T deserialize(String json, Class<T> classType) {
+        try {
+            return mapper.readValue(json, classType);
+        } catch (Exception e) {
+            log.error("Redis 역직렬화 실패 - Key: {}, Error: {}", json, e.getMessage());
+            throw new RuntimeException("JSON 변환 중 에러 발생", e);
+        }
     }
 
     /**
@@ -246,15 +256,30 @@ public class MusicChartService {
         List<MusicAlbumInfoResponse> albumList = detailToInfoList(summaries);
 
         // 레디스 저장 태스크들
+        ObjectMapper objectMapper = new ObjectMapper();
+        MusicSummaryCache summaryCache = MusicSummaryCache.builder()
+                .data(infoList)
+                .build();
+
+        MusicAlbumInfoCache albumInfoCache = MusicAlbumInfoCache.builder()
+                .data(albumList)
+                .build();
+
+        String infoJson = objectMapper.writeValueAsString(summaryCache);
+        String albumJson = objectMapper.writeValueAsString(albumInfoCache);
+
         Mono<Void> saveSummary = redisTemplate.opsForValue()
-                .set("summary:" + vendor, infoList, Duration.ofMinutes(30)).then();
+                .set("summary:" + vendor, infoJson, Duration.ofMinutes(30)).then();
 
         Mono<Void> saveDetail = redisTemplate.opsForValue()
-                .set("detail:" + vendor, albumList, Duration.ofMinutes(30)).then();
+                .set("detail:" + vendor, albumJson, Duration.ofMinutes(30)).then();
 
         Mono<Void> saveSongs = Flux.fromIterable(albumList)
-                .flatMap(dto -> redisTemplate.opsForValue()
-                        .set("song:" + dto.info().songId(), dto, Duration.ofMinutes(30)))
+                .flatMap(dto -> {
+                    String songJson = objectMapper.writeValueAsString(dto);
+                    return redisTemplate.opsForValue()
+                            .set("song:" + dto.info().songId(), songJson, Duration.ofMinutes(30));
+                })
                 .then();
 
         // 모두 저장 후 결과 반환
