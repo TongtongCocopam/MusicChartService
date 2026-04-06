@@ -20,11 +20,11 @@ public class WebClientConfig {
     @Bean
     public WebClient.Builder webClientBuilder() {
         HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000)
-                .responseTimeout(Duration.ofMillis(2000))
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
+                .responseTimeout(Duration.ofSeconds(20))
                 .doOnConnected(conn ->
-                        conn.addHandlerLast(new ReadTimeoutHandler(2000, TimeUnit.MILLISECONDS))
-                                .addHandlerLast(new WriteTimeoutHandler(2000, TimeUnit.MILLISECONDS)));
+                        conn.addHandlerLast(new ReadTimeoutHandler(20, TimeUnit.SECONDS))
+                                .addHandlerLast(new WriteTimeoutHandler(20, TimeUnit.SECONDS)));
 
 
         return WebClient.builder()
