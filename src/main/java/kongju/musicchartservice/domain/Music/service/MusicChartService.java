@@ -115,7 +115,9 @@ public class MusicChartService {
         return getFromRedis(cacheKey, classType)
                 .switchIfEmpty(Mono.defer(() ->
                         checkDbAndLock(vendor, cacheKey, classType)
-                                .then(getFromRedis(cacheKey, classType))
+                                .then(Mono.defer(() ->
+                                        getFromRedis(cacheKey, classType)
+                                ))
                 ));
     }
 
@@ -196,14 +198,15 @@ public class MusicChartService {
                     if (isLocked) {
                         // 다시 한번 레디스 확인
                         return getFromRedis(cacheKey, classType)
-                                .flatMap(getCachedData -> {
-                                    log.info("락 획득 후, 이미 캐시가 존재함 : {} ", vendor);
-                                    return Mono.empty();
+                                .hasElement()
+                                .flatMap(cacheExists -> {
+                                    if(cacheExists){
+                                        log.info("락 획득 후, 이미 캐시가 존재함 : {} ", vendor);
+                                        return Mono.empty();
+                                    }
+                                    log.info("락 획득 후에도 캐시 없음, 스크래핑 시작 : {}", vendor);
+                                    return refreshData(scraper, vendor);
                                 })
-                                .switchIfEmpty(
-                                        // 성공하면 scrapeAndSave로 이동
-                                        refreshData(scraper, vendor)
-                                )// 내용물을 Mono로 갈아끼우기
                                 .then(redisTemplate.delete(lockKey))
                                 .then();
                     } else {
