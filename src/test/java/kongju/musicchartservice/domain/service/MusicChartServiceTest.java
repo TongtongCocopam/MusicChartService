@@ -1,16 +1,15 @@
 package kongju.musicchartservice.domain.service;
 
 import kongju.musicchartservice.domain.Music.constant.Vendor;
+import kongju.musicchartservice.domain.Music.dto.*;
 import kongju.musicchartservice.domain.Music.entity.MusicDetail;
 import kongju.musicchartservice.domain.Music.entity.MusicSummary;
-import kongju.musicchartservice.domain.Music.dto.MusicSummaryCache;
-import kongju.musicchartservice.domain.Music.dto.MusicInfoResponse;
-import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
 import kongju.musicchartservice.domain.Music.service.MusicChartService;
 import kongju.musicchartservice.domain.infrastructure.scraping.MusicScraper;
 import kongju.musicchartservice.domain.Music.repository.MusicDetailRepository;
 import kongju.musicchartservice.domain.Music.repository.MusicSummaryRepository;
 
+import kongju.musicchartservice.global.error.exception.VendorNotFoundException;
 import org.mockito.Mock;
 import org.mockito.InjectMocks;
 import reactor.test.StepVerifier;
@@ -55,6 +54,79 @@ public class MusicChartServiceTest {
     private MusicChartService musicChartService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    @DisplayName("fail : vendor에 해당하는 scraper가 없으면 예외")
+    void getSummary_scraper가없으면_예외가발생한다() {
+
+        Map<Vendor, MusicScraper> scraperMap = new HashMap<>();
+        scraperMap.put(Vendor.MELON, musicScraper);
+
+        ReflectionTestUtils.setField(
+                musicChartService,
+                "scraperMap",
+                scraperMap
+        );
+
+        Vendor vendor = Vendor.VIBE;
+        String key = "summary:" + vendor;
+
+        when(redisTemplate.opsForValue())
+                .thenReturn(valueOperations);
+
+        when(valueOperations.get(key))
+                .thenReturn(Mono.empty());
+
+        when(musicSummaryRepository
+                .existsByVendorAndCreatedAtAfter(any(), any()))
+                .thenReturn(false);
+
+        StepVerifier.create(musicChartService.getSummary(vendor))
+                .expectError(VendorNotFoundException.class)
+                .verify();
+    }
+
+    @Test
+    @DisplayName("fail : Redis 캐시 역직렬화 실패")
+    void getSummary_잘못된캐시데이터면_예외가발생한다() {
+
+        Vendor vendor = Vendor.MELON;
+        String key = "summary:" + vendor;
+
+        when(redisTemplate.opsForValue())
+                .thenReturn(valueOperations);
+
+        when(valueOperations.get(key))
+                .thenReturn(Mono.just("invalid-json"));
+
+        StepVerifier.create(musicChartService.getSummary(vendor))
+                .expectError(RuntimeException.class)
+                .verify();
+
+        verifyNoInteractions(musicSummaryRepository);
+    }
+
+    @Test
+    @DisplayName("success : 상세 차트 캐시 조회")
+    void getDetails_캐시가있으면_반환한다() {
+
+        Vendor vendor = Vendor.MELON;
+        String key = "detail:" + vendor;
+
+        MusicAlbumInfoResponse mockResponse = mock(MusicAlbumInfoResponse.class);
+        MusicAlbumInfoCache cache = MusicAlbumInfoCache.builder()
+                .data(List.of(mockResponse))
+                .build();
+
+        String json = objectMapper.writeValueAsString(cache);
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(key)).thenReturn(Mono.just(json));
+
+        StepVerifier.create(musicChartService.getDetails(vendor))
+                .expectNextMatches(list -> !list.isEmpty())
+                .verifyComplete();
+    }
 
     @Test
     @DisplayName("success : Redis에 데이터가 이미 있는 경우")
@@ -161,6 +233,65 @@ public class MusicChartServiceTest {
                 .expectNextMatches(list -> list.get(0).album().equals("test Album"))
                 //성공적인 종료 신호
                 .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("success : 락 획득 후 캐시가 생성되어 있으면 스크래핑하지 않는다")
+    void getSummary_락획득후_캐시가있으면_스크래핑하지않는다() {
+
+        Vendor vendor = Vendor.MELON;
+        String key = "summary:" + vendor;
+        String lockKey = "lock:" + vendor;
+
+        Map<Vendor, MusicScraper> scraperMap = new HashMap<>();
+        scraperMap.put(vendor, musicScraper);
+        ReflectionTestUtils.setField(musicChartService, "scraperMap", scraperMap);
+
+        MusicInfoResponse response = MusicInfoResponse.builder()
+                .ranking(1)
+                .title("Test Song")
+                .artist("Test Artist")
+                .album("Test Album")
+                .songId("1")
+                .build();
+
+        String json = objectMapper.writeValueAsString(
+                MusicSummaryCache.builder()
+                        .data(List.of(response))
+                        .build()
+        );
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        // 1차 캐시 MISS
+        // 락 획득 후 Double Check HIT
+        // checkDbAndLock 종료 후 최종 조회 HIT
+        when(valueOperations.get(key))
+                .thenReturn(Mono.empty())
+                .thenReturn(Mono.just(json))
+                .thenReturn(Mono.just(json));
+
+        when(musicSummaryRepository
+                .existsByVendorAndCreatedAtAfter(any(), any()))
+                .thenReturn(false);
+
+        when(valueOperations.setIfAbsent(
+                eq(lockKey),
+                eq("LOCKED"),
+                any(Duration.class)
+        )).thenReturn(Mono.just(true));
+
+        when(redisTemplate.delete(lockKey))
+                .thenReturn(Mono.just(1L));
+
+        StepVerifier.create(musicChartService.getSummary(vendor))
+                .assertNext(list ->
+                        assertThat(list.get(0).title())
+                                .isEqualTo("Test Song")
+                )
+                .verifyComplete();
+
+        verify(musicScraper, never()).scrape();
     }
 
     @Test

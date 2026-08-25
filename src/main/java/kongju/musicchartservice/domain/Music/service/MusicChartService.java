@@ -52,7 +52,7 @@ public class MusicChartService {
     }
 
     /**
-     * contoller가 실행할 서비스 로직 - summary api용
+     * controller가 실행할 서비스 로직 - summary api용
      * 레디스 확인 후 없으면 checkDbAndLock호출
      *
      * @param vendor 검색하고자하는 vendor
