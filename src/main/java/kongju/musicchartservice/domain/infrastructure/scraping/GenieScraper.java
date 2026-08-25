@@ -1,26 +1,26 @@
 package kongju.musicchartservice.domain.infrastructure.scraping;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
-import kongju.musicchartservice.domain.Music.constant.Vendor;
 import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Document;
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.select.Elements;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import lombok.extern.slf4j.Slf4j;
+import reactor.core.scheduler.Schedulers;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import kongju.musicchartservice.global.error.exception.ScrapingFailedException;
+import kongju.musicchartservice.domain.Music.constant.Vendor;
 import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
-import reactor.core.scheduler.Schedulers;
+import kongju.musicchartservice.global.error.exception.ScrapingFailedException;
 
 
 @Component
