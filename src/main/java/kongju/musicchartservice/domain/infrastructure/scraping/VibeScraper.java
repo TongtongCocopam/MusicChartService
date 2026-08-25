@@ -2,17 +2,17 @@ package kongju.musicchartservice.domain.infrastructure.scraping;
 
 import java.util.List;
 
-import kongju.musicchartservice.domain.Music.dto.vibeScrapingContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import kongju.musicchartservice.domain.Music.constant.Vendor;
-import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import kongju.musicchartservice.domain.Music.constant.Vendor;
+import kongju.musicchartservice.domain.Music.dto.vibeScrapingContext;
+import kongju.musicchartservice.domain.Music.dto.MusicScrapingContext;
 
 
 @Component
@@ -49,7 +49,7 @@ public class VibeScraper implements MusicScraper {
                     ObjectMapper mapper = new ObjectMapper();
                     List<vibeScrapingContext> vibeList = mapper.convertValue(
                             tracks,
-                            new TypeReference<List<vibeScrapingContext>>() {
+                            new TypeReference<>() {
                             }
                     );
 
